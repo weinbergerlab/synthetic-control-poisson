@@ -27,7 +27,7 @@ for (group in groups) {
     	  pred_allvars_plot <-        plotPred(pred_quantiles_allvars[, , group], time_points, post_period, min_max, outcome_plot[, group], title = paste(group, 'AllVars estimate'))
     	  pred_allvars_plot_agg <-        plotPredAgg(ann_pred_quantiles_allvars[[group]], time_points, post_period, min_max, outcome_plot[, group], title = paste(group, 'AllVars estimate'))
     	  
-}
+
 	pred_full_plot_agg <-        plotPredAgg(ann_pred_quantiles_full[[group]], time_points, post_period, min_max, outcome_plot[, group], title = paste(group, 'Synthetic controls estimate'))
 	pred_time_plot_agg <-        plotPredAgg(ann_pred_quantiles_time[[group]], time_points, post_period, min_max, outcome_plot[, group], title = paste(group, 'Interupted time series estimate'))
 	pred_pca_plot_agg <-        plotPredAgg(ann_pred_quantiles_pca[[group]], time_points, post_period, min_max, outcome_plot[, group], title = paste(group, 'STL+PCA estimate'))
@@ -131,9 +131,6 @@ for (group in groups) {
 	          panel.background = element_blank()) +
 	    theme(legend.title = element_blank(), legend.position = c(0, 1), legend.justification = c(0, 1), legend.background = element_rect(colour = NA, fill = 'transparent'), plot.title = element_text(hjust = 0.5), panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 	  
-	
-	
-	
 	plot_list[[group]] <- list(covar_plot = covar_plot, 
                                          
                                       pred_allvars_plot=pred_allvars_plot,
@@ -153,7 +150,7 @@ for (group in groups) {
 															cumsum_prevented_allvars_plot=cumsum_prevented_allvars_plot,
 															cumsum_prevented_plot = cumsum_prevented_plot)
 
-
+}
 
 for (group in groups) {
 	cat('###', group, '\n', sep = '')
