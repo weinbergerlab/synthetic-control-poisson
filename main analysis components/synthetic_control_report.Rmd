@@ -87,7 +87,7 @@ kable( cbind.data.frame(rr_mean_full_intervals,rr_mean_time_intervals,rr_mean_ti
 		ggplot(rr_mean_combo, aes(x=group.index, y=mean.rr, color=Model,group=Model)) + 
 	  geom_errorbar(aes(ymin=lcl, ymax=ucl), colour="gray", width=.0) +
 	  geom_point(aes(shape=Model, size=est.index))+
-     scale_shape_manual(values=c(15, 16, 17,18))+
+     scale_shape_manual(values=c(15, 16, 17,18, 19))+
 	  scale_size_manual(values=c(point.weights2$value*2)) + #Scales area, which is optimal for bubbl plot
 	  #geom_errorbar(rr_mean_combo,aes(ymin=lcl, ymax=ucl), colour="black", width=.1) +
 	  theme_bw() +
@@ -133,7 +133,7 @@ kable(incl_probs, align = 'c')
 
 ##Weight Sensitivity Analysis
 ```{r sensitivity}
-if (!is.na(sensitivity_table_intervals)) {
+if(exists('sensitivity_table_intervals')){
 kable(sensitivity_table_intervals, align = 'c')
 }
 ```

@@ -352,12 +352,12 @@ rr_mean_combo<- as.data.frame(rbind( cbind(rep(1, nrow(rr_mean_full)),groups,  s
                     cbind(rep(5, nrow(rr_mean_allvars)), groups, seq(from=1, by=1, length.out=nrow(rr_mean_full)),rr_mean_allvars)) )
             
         names(rr_mean_combo)<-c('Model', 'groups', 'group.index','lcl','mean.rr','ucl')
-        if(crossval){
-          point.weights2<-stacking_weights.all.m
-        }else{
+       # if(crossval){
+          #point.weights2<-stacking_weights.all.m
+        # }else{
           point.weights2<-as.data.frame(matrix(rep(1,nrow(rr_mean_combo)), ncol=1))
-          names(point.weights2)<-'value'
-        }
+           names(point.weights2)<-'value'
+        # }
         rr_mean_combo$point.weights<-point.weights2$value
         rr_mean_combo$group.index<-as.numeric(as.character(rr_mean_combo$group.index))
         rr_mean_combo$mean.rr<-as.numeric(as.character(rr_mean_combo$mean.rr))
@@ -378,7 +378,7 @@ rr_mean_combo<- as.data.frame(rbind( cbind(rep(1, nrow(rr_mean_full)),groups,  s
         rr_mean_combo$est.index<-as.factor(1:nrow(rr_mean_combo))
         #Fix order for axis
         rr_mean_combo$Model<-as.factor(rr_mean_combo$Model)
-        rr_mean_combo$Model = factor(rr_mean_combo$Model,levels(rr_mean_combo$Model)[c(2,3,4,1)])
+        rr_mean_combo$Model = factor(rr_mean_combo$Model,levels(rr_mean_combo$Model)[c(3,4,5,2,1)])
         #print(levels(rr_mean_combo$Model))
 
 cumsum_prevented <- sapply(groups, FUN = cumsum_func, quantiles = quantiles_full, simplify = 'array')
