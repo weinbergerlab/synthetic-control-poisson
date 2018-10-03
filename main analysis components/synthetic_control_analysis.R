@@ -159,7 +159,7 @@ data_null <- setNames(lapply(groups, makeTimeSeries, outcome = outcome, covars =
 data_time_no_offset <- setNames(lapply(groups, makeTimeSeries, outcome = outcome, covars = covars_time, trend=FALSE), groups)
 data_allvars <- vector("list", length(data_full)) 
 for(i in 1: length(data_full)){
-  data_allvars[[i]]<-   cbind.data.frame(data_full[[i]], pc1=data_pca[[i]][,ncol(data_pca[[i]])], time.index=scale(1:nrow(data_pca[[i]])) )
+  data_allvars[[i]]<-   cbind.data.frame(data_full[[i]], pc1=scale(data_pca[[i]][,ncol(data_pca[[i]])]), time.index=scale(1:nrow(data_pca[[i]])) )
 }
   
   
@@ -174,9 +174,9 @@ cl <- makeCluster(n_cores)
 clusterEvalQ(cl, {library(pogit, quietly = TRUE); library(lubridate, quietly = TRUE)})
 clusterExport(cl, c('doCausalImpact',  'intervention_date', 'time_points', 'n_seasons','crossval'), environment())
 impact_full <- setNames(parLapply(cl, data_full, doCausalImpact, intervention_date = intervention_date, var.select.on=TRUE, time_points = time_points), groups)
-impact_time <- setNames(parLapply(cl, data_time, doCausalImpact, intervention_date = intervention_date,  var.select.on=TRUE,time_points = time_points, trend = TRUE), groups)
-impact_time_no_offset <- setNames(parLapply(cl, data_time_no_offset, doCausalImpact, intervention_date = intervention_date,  var.select.on=TRUE,time_points = time_points,  trend = FALSE), groups)
-impact_pca <- setNames(parLapply(cl, data_pca, doCausalImpact, intervention_date = intervention_date, var.select.on=TRUE, time_points = time_points), groups)
+impact_time <- setNames(parLapply(cl, data_time, doCausalImpact, intervention_date = intervention_date,  var.select.on=FALSE,time_points = time_points, trend = TRUE), groups)
+impact_time_no_offset <- setNames(parLapply(cl, data_time_no_offset, doCausalImpact, intervention_date = intervention_date,  var.select.on=FALSE,time_points = time_points,  trend = FALSE), groups)
+impact_pca <- setNames(parLapply(cl, data_pca, doCausalImpact, intervention_date = intervention_date, var.select.on=FALSE, time_points = time_points), groups)
 impact_allvars <- setNames(parLapply(cl, data_allvars, doCausalImpact, intervention_date = intervention_date, var.select.on=TRUE, time_points = time_points), groups)
 #No covariates, but with random intercept
 #impact_seas_only <- setNames(parLapply(cl, data_null, doCausalImpact, intervention_date = intervention_date, var.select.on=FALSE, time_points = time_points, n_seasons = n_seasons), groups)
@@ -202,9 +202,9 @@ stopCluster(cl)
         clusterEvalQ(cl, {library(pogit, quietly = TRUE); library(lubridate, quietly = TRUE)})
         clusterExport(cl, c('doCausalImpact',  'intervention_date', 'time_points', 'n_seasons','crossval'), environment())
           cv_impact_full <-setNames(parLapply(cl, cv.data_full, function(x) lapply(x, doCausalImpact,crossval.stage=TRUE, intervention_date = intervention_date,  var.select.on=TRUE, time_points = time_points)), groups)
-          cv_impact_time_no_offset <-setNames(parLapply(cl, cv.data_time_no_offset, function(x) lapply(x, doCausalImpact,crossval.stage=TRUE, trend=FALSE, intervention_date = intervention_date,  var.select.on=TRUE, time_points = time_points)), groups)
-          cv_impact_time <-setNames(parLapply(cl, cv.data_time, function(x) lapply(x, doCausalImpact,crossval.stage=TRUE, trend=TRUE, intervention_date = intervention_date,  var.select.on=TRUE, time_points = time_points)), groups)
-          cv_impact_pca <-setNames(parLapply(cl, cv.data_pca, function(x) lapply(x, doCausalImpact,crossval.stage=TRUE, intervention_date = intervention_date,  var.select.on=TRUE, time_points = time_points)), groups)
+          cv_impact_time_no_offset <-setNames(parLapply(cl, cv.data_time_no_offset, function(x) lapply(x, doCausalImpact,crossval.stage=TRUE, trend=FALSE, intervention_date = intervention_date,  var.select.on=FALSE, time_points = time_points)), groups)
+          cv_impact_time <-setNames(parLapply(cl, cv.data_time, function(x) lapply(x, doCausalImpact,crossval.stage=TRUE, trend=TRUE, intervention_date = intervention_date,  var.select.on=FALSE, time_points = time_points)), groups)
+          cv_impact_pca <-setNames(parLapply(cl, cv.data_pca, function(x) lapply(x, doCausalImpact,crossval.stage=TRUE, intervention_date = intervention_date,  var.select.on=FALSE, time_points = time_points)), groups)
         stopCluster(cl)
         # Stop the clock
         proc.time() - ptm
