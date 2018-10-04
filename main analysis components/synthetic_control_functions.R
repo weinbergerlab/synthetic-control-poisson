@@ -102,24 +102,6 @@ makeTimeSeries <- function(group, outcome,  covars, trend=FALSE) {
 doCausalImpact <- function(zoo_data, intervention_date, ri.select=TRUE,time_points,crossval.stage=FALSE, var.select.on=TRUE, n_iter = 10000, trend = FALSE) {
 	
   #Format outcome and covariates for regular and cross-validations
-  if(crossval.stage){
-    #Data for cross-validation
-    y.pre<-zoo_data$cv.data[,1]
-    y.full<-zoo_data$full.data[,1]
-    exclude.indices<-zoo_data$exclude.indices
-    if(trend){
-      x <-as.matrix(zoo_data$full.data[, -c(1,2)]) #Removes outcome column and offset from dataset
-      offset.t<-as.vector(exp(as.matrix(zoo_data$full.data[, 2])))
-      offset.t.pre<-as.vector(exp(as.matrix(zoo_data$cv.data[, 2])))
-      x.pre <-as.matrix(zoo_data$cv.data[,-c(1,2)]) 
-    }else{
-      x <-as.matrix(zoo_data$full.data[, -1]) #Removes outcome column from dataset
-      x.pre <-as.matrix(zoo_data$cv.data[,-1]) 
-      x.pre.var<-apply(x.pre,2,var) #test if covariate changes at all in pre-period; if not delete (ie pandemic)
-      x<-x[,x.pre.var>0] #eliminate from full matrix
-      x.pre<-x.pre[,x.pre.var>0] #eliminate from cv matrix
-    }
-  }else{
     ##Data for non-cross-validation
       y.pre <- zoo_data[time_points < as.Date(intervention_date), 1]
     	y.full<-zoo_data[,1] #all y
@@ -128,168 +110,59 @@ doCausalImpact <- function(zoo_data, intervention_date, ri.select=TRUE,time_poin
     	  x <-as.matrix(zoo_data[, -c(1,2)]) #Removes outcome column and offset from dataset
     	  offset.t<-as.vector(exp(as.matrix(zoo_data[, 2])))
     	  offset.t.pre<- offset.t[time_points < as.Date(intervention_date) ]
+    	  log.offset.t.pre<-log(offset.t.pre)
     	}else{
     	  x <-as.matrix(zoo_data[, -c(1)]) #Removes outcome column from dataset
     	}
     	x.pre <-as.matrix(x[time_points < as.Date(intervention_date), ]) 
-  }
-  
-	post_period_response <- y.full
-	post_period_response <- as.vector(post_period_response[time_points >= as.Date(intervention_date)])
 
-	covars<-x
-	cID <- seq_along(y.pre) #used for observation-level random effect
+    	#Setup fro RSTANARM
+    	covars.names<- paste0(paste(names(zoo_data)[-1], collapse="+"),"+(1|index)")
+    	form1<- as.formula( paste0('outcome ~' , covars.names ))
+    	data.fit<-zoo_data[time_points < as.Date(intervention_date),]
+    	data.fit$index<- as.factor(1:nrow(data.fit))
+    	# set up the prior , use hyperprior tau ∼ half - Cauchy (0 , tau0 ^2) https://projecteuclid.org/download/pdfview_1/euclid.ejs/1513306866 page 5048
+    	D <- ncol (data.fit)-1 #n fixed effect coefficients
+    	n <- nrow (data.fit)   
+    	p0 <- 5 # prior guess for the number of relevant variables
+    	outcome.mean<-mean(zoo_data[time_points < as.Date(intervention_date),1])
+    	sigma<- 1/ sqrt(outcome.mean)  #Pseudo sigma=1/mean(y) for a Poisson model
+    	tau0 <- p0 /( D - p0 ) * sigma / sqrt (n)
+    
+  	post_period_response <- y.full
+  	post_period_response <- as.vector(post_period_response[time_points >= as.Date(intervention_date)])
+
 	
 	#Which variables are fixed in the analysis (not estimated)
-	if(trend){
-  	deltafix.mod<-c(rep(1, times=(ncol(x.pre)-1)),0) #monthly dummies, offset, fixed 
-  	bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, offset=offset.t.pre, BVS=var.select.on, model = list(deltafix=deltafix.mod,ri = ri.select, clusterID = cID))
-	}else{
+	if(trend==1 & var.select.on != 1){
+      bsts_model.pois<-stan_glmer(form1, data = data.fit, family = poisson() ,offset=log.offset.t.pre  ,  QR=TRUE, chains = 4, cores = n_cores, seed = 123 ,iter=2000)
+	 }else{
 	  if(var.select.on){
-	    deltafix.mod<-rep(0, times=(ncol(x.pre)))
-	    deltafix.mod[1:(n_seasons-1)]<-1 #fix  monthly dummies
-	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=TRUE, model = list(deltafix=deltafix.mod,ri = TRUE, clusterID = cID))
-	  }else{
-	    if(ri.select){
-	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=FALSE, model = list(ri = TRUE, clusterID = cID))
+  	  bsts_model.pois<-stan_glmer(form1, data = data.fit, family = poisson()  ,prior=hs ( df =1 , global_df =1 , global_scale = tau0 ) , QR=TRUE,   chains = 4, cores = n_cores, seed = 123 ,iter=2000)
 	    }else{
-	   bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=FALSE)
+	   bsts_model.pois<-stan_glmer(form1, data = data.fit, family = poisson()   ,  QR=TRUE,  chains = 4, cores = n_cores, seed = 123 ,iter=2000)
 	    }
 	  }
-	}
 
-	beta.mat<- bsts_model.pois$samplesP$beta[-c(1:2000),]
-	x.fit<-cbind(rep(1,nrow(x)),x)
-		#Generate  predictions with prediction interval
-	if(ri.select){
-  	disp<-bsts_model.pois$samplesP$thetaBeta[-c(1:2000),1] ##note theta beta is signed--bimodal dist---take abs value
-  	disp.mat<-rnorm(n=length(disp)*length(y.full), mean=0, sd=abs(disp)) #Note: confirmed that median(abs(disp)) is same as sd(rand.eff)
-  	disp.mat<-t(matrix(disp.mat, nrow=length(disp), ncol=length(y.full)))
-   	} else{
-	    disp.mat=0 #if no random effect in model, just set to 0.
-  	}
+#	beta.mat<- bsts_model.pois$samplesP$beta[-c(1:2000),]
+#	x.fit<-cbind(rep(1,nrow(x)),x)
+
 	if(trend){
-	  reg.mean<-   exp(  (x.fit %*% t(beta.mat)) + disp.mat)  *offset.t
+	  predict.bsts<-  t(posterior_predict(bsts_model.pois, offset=log.offset.t.pre , newdata=cbind.data.frame(zoo_data, index=as.factor(1:nrow(zoo_data)))))
 	}else{
-	  reg.mean<-   exp(  (x.fit %*% t(beta.mat)) + disp.mat )
-	  }
-	predict.bsts<-rpois(length(reg.mean),lambda=reg.mean)
-	predict.bsts<-matrix(predict.bsts,nrow=nrow(reg.mean), ncol=ncol(reg.mean))
-	#predict.bsts.q<-t(apply(predict.bsts,1,quantile, probs=c(0.025,0.5,0.975)))
-	#matplot(predict.bsts.q, type='l', col=c('gray','black','gray'), lty=c(2,1,2), bty='l', ylab="N hospitalizations")
-	#points(y.full)
+	  predict.bsts<-  t(posterior_predict(bsts_model.pois, newdata=cbind.data.frame(zoo_data, index=as.factor(1:nrow(zoo_data)))))
+	}
 	
 	#Inclusion probabilities Poisson model
-	incl.probs.mat<-t(bsts_model.pois$samplesP$pdeltaBeta[-c(1:2000),])
-	inclusion_probs<-apply(incl.probs.mat,1,mean)
-	summary.pois<- summary(bsts_model.pois)
+	#incl.probs.mat<-t(bsts_model.pois$samplesP$pdeltaBeta[-c(1:2000),])
+	inclusion_probs<-sort(coef(bsts_model.pois))
 	covar.names<-dimnames(x.pre)[[2]]
-	if (ri.select){
-  	rand.eff<-bsts_model.pois$samplesP$bi[-c(1:2000),]
-	}else{
-	  rand.eff=0
-	}
-	inclusion_probs<-cbind.data.frame(covar.names,inclusion_probs)
-	if(trend){
-	impact <- list(reg.mean,exclude.indices,rand.eff,offset.t,covars,beta.mat,predict.bsts,inclusion_probs, post.period.response = post_period_response, observed.y=y.full)
-	names(impact)<-c('reg.mean','exclude.indices','rand.eff','offset.t.pre','covars','beta.mat','predict.bsts','inclusion_probs','post_period_response', 'observed.y' )
-	}else{
-	  impact <- list(reg.mean,exclude.indices, rand.eff,covars,beta.mat,predict.bsts,inclusion_probs, post.period.response = post_period_response, observed.y=y.full)
-	  names(impact)<-c('reg.mean','exclude.indices' ,'rand.eff','covars','beta.mat','predict.bsts','inclusion_probs','post_period_response', 'observed.y' )
-	}
+
+
+	impact <- list(predict.bsts,inclusion_probs,  observed.y=y.full)
+	names(impact)<-c('predict.bsts','inclusion_probs', 'observed.y' )
+
 	return(impact)
-}
-
-crossval.log.lik<- function(cv.impact){
-  exclude.id<-cv.impact$exclude.indices
-  pred.exclude<- cv.impact$reg.mean[exclude.id,] #use predicted mean (which incorporates random effect)
-  obs.exclude<- cv.impact$observed.y[exclude.id]
-  point.ll1<-matrix(NA, nrow=nrow(pred.exclude), ncol=ncol(pred.exclude))
-  for(i in 1: ncol(pred.exclude)){
-    point.ll1[,i]<-dpois(obs.exclude, lambda=pred.exclude[,i], log=TRUE )
-  }
-
-  return(point.ll1)
-}
-
-# cross validated predictions vs observed
-pred.cv<-function(cv.impact){
-  exclude.id<-cv.impact$exclude.indices
-  pred.exclude<- cv.impact$reg.mean[exclude.id,] #use predicted mean (which incorporates random effect)
-  cv.pred.q<- t(apply(pred.exclude,1,quantile, probs=c(0.025,0.5, 0.975)))
-  cv.pred.q<-cbind( cv.impact$observed.y[exclude.id],cv.pred.q) #combine observed and expected
-   return(cv.pred.q)
-}
-
-# stack.mean<-function(group,impact_full,impact_time,impact_time_no_offset,impact_pca){
-#   #Averaged--multiply each log(mean) by weight, then add, then exponentiate and draw from Poisson
-#     weights<-as.numeric(as.vector(stacking_weights.all[stacking_weights.all$groups==group,]))
-#     rm.full<-log(impact_full$reg.mean)*weights[2]
-#     rm.time<-log(impact_time$reg.mean)*weights[3]
-#     rm.time_no_offset<-log(impact_time_no_offset$reg.mean)*weights[4]
-#     rm.pca<-log(impact_pca$reg.mean)*weights[5]
-#     
-#     pred.full<-apply(impact_full$reg.mean, 1, median)
-#     pred.time<-apply(impact_time$reg.mean, 1, median)
-#     pred.time.no_offset<-apply(impact_time_no_offset$reg.mean, 1, median)
-#     pred.pca<-apply(impact_pca$reg.mean, 1, median)
-#     all.preds<-cbind(pred.full,pred.time,pred.time.no_offset,pred.pca)
-#     
-#     stack<-rm.full+rm.time+rm.time_no_offset+rm.pca
-#     pred.stack.count<-rpois(n=length(stack),lambda=exp(stack))
-#      pred.stack.count<-matrix(pred.stack.count, nrow=nrow(rm.full), ncol=ncol(rm.full))
-#       pred.stack.q<- t(apply(pred.stack.count,1,quantile, probs=c(0.025,0.5,0.975)))
-#      # log.rr.stack.q<-log((outcome[,group]+0.5)/pred.stack.q)
-#     # log.rr.iter<- log((outcome[,group]+0.5)/pred.stack.count)
-#     # log_rr_stack.cov<-cov(t(log.rr.iter))
-#     # log_rr_stack.prec<-solve(log_rr_stack.cov) #NOT INVERTIBLE?
-#     # #log_rr_stack.prec=log_rr_stack.cov
-#     stacked.est<-list(pred.stack.count, pred.stack.q,outcome[,group] )
-#     names(stacked.est)<-list('predict.bsts','pred.stack.q', 'observed.y' )
-#     return(stacked.est)
-# }
-
-stack.mean<-function(group,impact_full,impact_time,impact_time_no_offset,impact_pca){
-  #Averaged--multiply each log(mean) by weight, then add, then exponentiate and draw from Poisson
-    weights<-as.numeric(as.vector(stacking_weights.all[stacking_weights.all$groups==group,]))
-    
-    #df[sample(nrow(df), 3), ]
-    samp.probs<- weights[2:5]
-    n.iter<-ncol(impact_full$reg.mean)
-    n.samps<-rmultinom(n=1,size=n.iter, prob=samp.probs)
-    
-    rm.full<-log(impact_full$reg.mean[,sample(n.iter,n.samps[1]) ] )
-    rm.time<-log(impact_time$reg.mean[,sample(n.iter,n.samps[2]) ] )
-    rm.time_no_offset<-log(impact_time_no_offset$reg.mean[,sample(n.iter,n.samps[3]) ] )
-    rm.pca<-log(impact_pca$reg.mean[,sample(n.iter,n.samps[4]) ] )
-
-    pred.full<-apply(impact_full$reg.mean, 1, median)
-    pred.time<-apply(impact_time$reg.mean, 1, median)
-    pred.time.no_offset<-apply(impact_time_no_offset$reg.mean, 1, median)
-    pred.pca<-apply(impact_pca$reg.mean, 1, median)
-    all.preds<-cbind(pred.full,pred.time,pred.time.no_offset,pred.pca)
-
-    stack<-cbind( rm.full,rm.time,rm.time_no_offset,rm.pca)
-    pred.stack.count<-rpois(n=length(stack),lambda=exp(stack))
-     pred.stack.count<-matrix(pred.stack.count, nrow=nrow(stack), ncol=ncol(stack))
-      pred.stack.q<- t(apply(pred.stack.count,1,quantile, probs=c(0.025,0.5,0.975)))
-    # log.rr.stack.q<-log((outcome[,group]+0.5)/pred.stack.q)
-    # log.rr.iter<- log((outcome[,group]+0.5)/pred.stack.count)
-    # log_rr_stack.cov<-cov(t(log.rr.iter))
-    # log_rr_stack.prec<-solve(log_rr_stack.cov) #NOT INVERTIBLE?
-    # #log_rr_stack.prec=log_rr_stack.cov
-    stacked.est<-list(pred.stack.count, pred.stack.q,outcome[,group] )
-    names(stacked.est)<-list('predict.bsts','pred.stack.q', 'observed.y' )
-    return(stacked.est)
-}
-
-plot.stack.est<-function(stacked.ests){
-  matplot(stacked.ests$all.preds, lty=1,type='l', col=c('#a6cee3','#1f78b4','#b2df8a','#33a02c'),bty='l', lwd=0.5, ylim=c(0, range(stacked.ests$pred.stack.q)[2]))
-  matplot(stacked.ests$pred.stack.q, type='l', col=c('gray','black','gray'),lwd=c(1,2,1), lty=c(2,1,2), bty='l', add=TRUE )
-  points(stacked.ests$y)
-  legend('bottomleft',inset=0.02, legend=c("Synthetic controls", "Time trend",'Time trend, no offset', 'STL+PCA'),
-         col=c('#a6cee3','#1f78b4','#b2df8a','#33a02c'), lty=1, cex=0.8,
-         box.lty=0)
 }
 
 reshape.arr<-function(point.ll3){
@@ -306,41 +179,7 @@ inclusionProb <- function(impact) {
 	return(impact$inclusion_probs)
 }
 
-#Extract pointwise log likelihood matrix--could be used with LOO
-point.ll<-function(impact){
-  covars<-impact$covars
-  betas<-impact$beta.mat
-  re<-impact$rand.eff
-  obs.y.pre<-impact$observed.y[1:69]
-  covars<-cbind(rep(1,nrow(covars)),covars)[1:69,]
-  pred<- covars %*% t(betas)  + t(re)
-  ll.obs<-matrix(NA, nrow=nrow(pred), ncol=ncol(pred))
-  for(i in 1:ncol(pred)){
-    ll.obs[,i]<- dpois(obs.y.pre, lambda=exp(pred[,i]), log=TRUE)
-  }
-  ll.obs<-t(ll.obs)
-  return(ll.obs)
-}
 
-
-##K-fold cross-validation
-  #Create K-fold datasets
-makeCV<-function(ds){
-  impact<-ds
-  impact.pre<-ds[time_points<intervention_date,]
-  year.pre<-year(time_points[time_points<intervention_date])
-  year.pre.vec<-unique(year.pre)
-  N.year.pre<-length(year.pre.vec)
-  impact.list.cv<-vector("list",  length=N.year.pre) 
-  cv.data<-vector("list",  length=N.year.pre) 
-    for(i in 1:N.year.pre){
-    impact.list.cv<-impact.pre[!(year.pre==year.pre.vec[i]),] 
-    exclude.indices<-which((year.pre==year.pre.vec[i]))
-    cv.data[[i]]<- list(impact.list.cv,impact,exclude.indices) #combine full data (pre and post) and CV data
-    names(cv.data[[i]])<-c('cv.data','full.data','exclude.indices')
-  }
-  return(cv.data)
-}
 
 #Estimate the rate ratios during the evaluation period and return to the original scale of the data.
 rrPredQuantiles <- function(impact, denom_data = NULL,  eval_period, post_period) {

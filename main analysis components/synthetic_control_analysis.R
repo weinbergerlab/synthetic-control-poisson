@@ -24,7 +24,7 @@ if(.Platform$OS.type == "windows") {
 auto.wd<-file.path(paste0(desktop,'/synthetic-control-poisson-master/main analysis components/'))
 #
 
-packages <- c('parallel', 'splines', 'lubridate','loo', 'RcppRoll','pomp','lme4', 'BoomSpikeSlab', 'ggplot2', 'reshape','dummies')
+packages <- c('parallel', 'splines', 'lubridate','loo', 'RcppRoll','pomp','lme4', 'rstanarm', 'ggplot2', 'reshape','dummies')
 packageHandler(packages, update_packages, install_packages)
 sapply(packages, library, quietly = TRUE, character.only = TRUE)
 
@@ -169,121 +169,29 @@ for(i in 1: length(data_full)){
 #                             #
 ###############################
 
-#Start Cluster for CausalImpact (the main analysis function).
-cl <- makeCluster(n_cores)
-clusterEvalQ(cl, {library(pogit, quietly = TRUE); library(lubridate, quietly = TRUE)})
-clusterExport(cl, c('doCausalImpact',  'intervention_date', 'time_points', 'n_seasons','crossval'), environment())
-impact_full <- setNames(parLapply(cl, data_full, doCausalImpact, intervention_date = intervention_date, var.select.on=TRUE, time_points = time_points), groups)
-impact_time <- setNames(parLapply(cl, data_time, doCausalImpact, intervention_date = intervention_date,  var.select.on=FALSE,time_points = time_points, trend = TRUE), groups)
-impact_time_no_offset <- setNames(parLapply(cl, data_time_no_offset, doCausalImpact, intervention_date = intervention_date,  var.select.on=FALSE,time_points = time_points,  trend = FALSE), groups)
-impact_pca <- setNames(parLapply(cl, data_pca, doCausalImpact, intervention_date = intervention_date, var.select.on=FALSE, time_points = time_points), groups)
-impact_allvars <- setNames(parLapply(cl, data_allvars, doCausalImpact, intervention_date = intervention_date, var.select.on=TRUE, time_points = time_points), groups)
-#No covariates, but with random intercept
-#impact_seas_only <- setNames(parLapply(cl, data_null, doCausalImpact, intervention_date = intervention_date, var.select.on=FALSE, time_points = time_points, n_seasons = n_seasons), groups)
-#No covariates except seasonal, no random intercept
-#impact_seas_only_no_re <- setNames(parLapply(cl, data_null, doCausalImpact, intervention_date = intervention_date, var.select.on=FALSE,ri.select=FALSE, time_points = time_points, n_seasons = n_seasons), groups)
-stopCluster(cl)
+impact_full <- setNames(lapply( data_full, doCausalImpact, intervention_date = intervention_date, adapt_delta=0.9999,n_iter=3000, var.select.on=TRUE, time_points = time_points,n_cores=n_cores), groups)
+impact_time <- setNames(lapply( data_time, doCausalImpact, intervention_date = intervention_date,  var.select.on=FALSE,time_points = time_points,n_cores=n_cores, trend = TRUE), groups)
+impact_time_no_offset <- setNames(lapply( data_time_no_offset, doCausalImpact, intervention_date = intervention_date,  var.select.on=FALSE,time_points = time_points,n_cores=n_cores,  trend = FALSE), groups)
+impact_pca <- setNames(lapply( data_pca, doCausalImpact, intervention_date = intervention_date, var.select.on=FALSE, time_points = time_points,n_cores=n_cores), groups)
+impact_allvars <- setNames(lapply( data_allvars, doCausalImpact, intervention_date = intervention_date,adapt_delta=0.9999,n_iter=3000, var.select.on=TRUE, time_points = time_points,n_cores=n_cores), groups)
 
-####################################################
-####################################################
-#CROSS VALIDATION
-####################################################
-    if(crossval){
-      #Creates List of lists: 1 entry for each stratum; within this, there are CV datasets for each year left out, and within this, there are 2 lists, one with full dataset, and one with the CV dataset
-        cv.data_full<-lapply(data_full, makeCV)
-        cv.data_time<-lapply(data_time, makeCV)
-        cv.data_time_no_offset<-lapply(data_time_no_offset, makeCV)
-        cv.data_pca<-lapply(data_pca, makeCV)
-      #zoo_data<-cv.data_time[[1]][[2]]
-      #Run the models on each of these datasets
-        # Start the clock!--takes ~45 minutes
-          ptm <- proc.time()
-        cl <- makeCluster(n_cores)
-        clusterEvalQ(cl, {library(pogit, quietly = TRUE); library(lubridate, quietly = TRUE)})
-        clusterExport(cl, c('doCausalImpact',  'intervention_date', 'time_points', 'n_seasons','crossval'), environment())
-          cv_impact_full <-setNames(parLapply(cl, cv.data_full, function(x) lapply(x, doCausalImpact,crossval.stage=TRUE, intervention_date = intervention_date,  var.select.on=TRUE, time_points = time_points)), groups)
-          cv_impact_time_no_offset <-setNames(parLapply(cl, cv.data_time_no_offset, function(x) lapply(x, doCausalImpact,crossval.stage=TRUE, trend=FALSE, intervention_date = intervention_date,  var.select.on=FALSE, time_points = time_points)), groups)
-          cv_impact_time <-setNames(parLapply(cl, cv.data_time, function(x) lapply(x, doCausalImpact,crossval.stage=TRUE, trend=TRUE, intervention_date = intervention_date,  var.select.on=FALSE, time_points = time_points)), groups)
-          cv_impact_pca <-setNames(parLapply(cl, cv.data_pca, function(x) lapply(x, doCausalImpact,crossval.stage=TRUE, intervention_date = intervention_date,  var.select.on=FALSE, time_points = time_points)), groups)
-        stopCluster(cl)
-        # Stop the clock
-        proc.time() - ptm
-      
-        #Calculate pointwise log likelihood for cross-val prediction sample vs observed
-        #These are N_iter*N_obs*N_cross_val array
-        ll.cv.full<-lapply(cv_impact_full, function(x) lapply(x,crossval.log.lik))
-        ll.cv.full2<-lapply(ll.cv.full, reshape.arr)
-        #
-        ll.cv.time_no_offset<-lapply(cv_impact_time_no_offset, function(x) lapply(x,crossval.log.lik))
-        ll.cv.time_no_offset2<-lapply(ll.cv.time_no_offset, reshape.arr)
-        #
-        ll.cv.time<-lapply(cv_impact_time, function(x) lapply(x,crossval.log.lik))
-        ll.cv.time2<-lapply(ll.cv.time, reshape.arr)
-        #
-        ll.cv.pca<-lapply(cv_impact_pca, function(x) lapply(x,crossval.log.lik))
-        ll.cv.pca2<-lapply(ll.cv.pca, reshape.arr)
-        #Create list that has model result for each stratum
-        ll.compare<- vector("list", length(ll.cv.pca2)) 
-      stacking_weights.all<-matrix(NA, nrow=length(ll.cv.pca2), ncol=4)
-        
-         for(i in 1:length(ll.compare)){
-          ll.compare[[i]]<-cbind(ll.cv.full2[[i]],ll.cv.time_no_offset2[[i]],ll.cv.time2[[i]],ll.cv.pca2[[i]])#will get NAs if one of covariates is constant in fitting period (ie pandemic flu dummy)...shoud=ld fix this above
-          keep<-complete.cases(ll.compare[[i]])
-          ll.compare[[i]]<-ll.compare[[i]][keep,]
-          #occasionally if there is a very poor fit, likelihood is very very small, which leads to underflow issue and log(0)...delete these rows to avoid this as a dirty solution. Better would be to fix underflow
-          row.min<-apply(exp(ll.compare[[i]]),1,min)
-          ll.compare[[i]]<-ll.compare[[i]][!(row.min==0),]
-          #if(min(exp(ll.compare[[i]]))>0){
-             stacking_weights.all[i,]<-stacking_weights(ll.compare[[i]])
-           #}
-         }
-      stacking_weights.all<-as.data.frame(round(stacking_weights.all,3))
-        names(stacking_weights.all)<-c('Synthetic Controls', 'Time trend', 'Time trend (no offset)', 'STL+PCA')
-        stacking_weights.all<-cbind.data.frame(groups,stacking_weights.all)
-        stacking_weights.all.m<-melt(stacking_weights.all, id.vars='groups')
-       # stacking_weights.all.m<-stacking_weights.all.m[order(stacking_weights.all.m$groups),]
-        
-        stacked.ests<-mapply(  FUN=stack.mean,group=groups,impact_full=impact_full,impact_time=impact_time,impact_time_no_offset=impact_time_no_offset,impact_pca=impact_pca, SIMPLIFY=FALSE )
-       # plot.stacked.ests<-lapply(stacked.ests,plot.stack.est)
-        quantiles_stack <- setNames(lapply(groups, FUN = function(group) {rrPredQuantiles(impact = stacked.ests[[group]], denom_data = ds[[group]][, denom_name],        eval_period = eval_period, post_period = post_period)}), groups)
-        pred_quantiles_stack <- sapply(quantiles_stack, getPred, simplify = 'array')
-        rr_roll_stack <- sapply(quantiles_stack, FUN = function(quantiles_stack) {quantiles_stack$roll_rr}, simplify = 'array')
-        rr_mean_stack <- round(t(sapply(quantiles_stack, getRR)),2)
-        rr_mean_stack_intervals <- data.frame('Stacking Estimate (95% CI)'     = makeInterval(rr_mean_stack[, 2], rr_mean_stack[, 3], rr_mean_stack[, 1]), check.names = FALSE, row.names = groups)
-        cumsum_prevented_stack <- sapply(groups, FUN = cumsum_func, quantiles = quantiles_stack, simplify = 'array')
-        ann_pred_quantiles_stack <- sapply(quantiles_stack, getAnnPred, simplify = FALSE)
-        
-        #Preds: Compare observed and expected
-        pred.cv.full<-lapply(cv_impact_full, function(x) sapply(x,pred.cv,simplify='array'))
-        pred.cv.pca<-lapply(cv_impact_pca, function(x) sapply(x,pred.cv,simplify='array'))
-          
-        # # par(mfrow=c(3,2))
-        # plot.grp=9
-        # for(i in 1:6){
-        # matplot(pred.cv.full[[plot.grp]][,c(2:4),i], type='l', ylab='Count',col='#1b9e77', lty=c(2,1,2), bty='l', ylim=range(pred.cv.full[[plot.grp]][,c(1),i])*c(0.8,1.2))
-        # points(pred.cv.full[[plot.grp]][,c(1),i], pch=16)
-        # title("Synthetic controls: Cross validation")
-        # matplot(pred.cv.pca[[plot.grp]][,c(2:4),i], type='l',ylab='Count', col='#d95f02', lty=c(2,1,2), bty='l', ylim=range(pred.cv.full[[plot.grp]][,c(1),i])*c(0.8,1.2))
-        # points(pred.cv.pca[[plot.grp]][,c(1),i], pch=16)
-        # title("STL+PCA: Cross validation")
-        # }
-        
-        save.stack.est<-list(post_period,outcome_plot, time_points,ann_pred_quantiles_stack, pred_quantiles_stack,rr_roll_stack,rr_mean_stack,rr_mean_stack_intervals,cumsum_prevented_stack)
-        names(save.stack.est)<-c('post_period','outcome_plot','time_points', 'ann_pred_quantiles_stack', 'pred_quantiles_stack','rr_roll_stack','rr_mean_stack','rr_mean_stack_intervals','cumsum_prevented_stack')
-        saveRDS(save.stack.est, file=paste0(output_directory, country, "Stack estimates.rds"))
-        
-        #Pointwise RR and uncertainty for second stage meta analysis
-        log_rr_quantiles_stack   <- sapply(quantiles_stack,   FUN = function(quantiles) {quantiles$log_rr_full_t_quantiles}, simplify = 'array')
-        dimnames(log_rr_quantiles_stack)[[1]] <- time_points
-        log_rr_full_t_samples.stack.prec<-sapply(quantiles_stack,   FUN = function(quantiles) {quantiles$log_rr_full_t_samples.prec.post}, simplify = 'array')
-        #log_rr_sd.stack   <- sapply(quantiles_stack,   FUN = function(quantiles) {quantiles$log_rr_full_t_sd}, simplify = 'array')
-        
-        saveRDS(log_rr_quantiles_stack, file=paste0(output_directory, country, "_log_rr_quantiles_stack.rds"))
-        saveRDS(log_rr_full_t_samples.stack.prec, file=paste0(output_directory, country, "_log_rr_full_t_samples.stack.prec.rds"))
-      }
+
+#Test1
+#groups2.test<-groups[1:2]
+#data_full.test<-data_full[1:2]
+#impact_full_test1 <- setNames(lapply( data_full.test, doCausalImpact, intervention_date = intervention_date, adapt_delta=0.9999,n_iter=3000, var.select.on=TRUE, time_points = time_points,n_cores=n_cores), groups2.test)
+# #impact_full_test1 <- setNames(lapply( data_full.test, doCausalImpact, intervention_date = intervention_date, adapt_delta=0.9999,n_iter=3000, var.select.on=TRUE, time_points = time_points,n_cores=n_cores), groups2.test)
+# n_iter=2000
+# test1<-stan_glmer(form1, data = data.fit, family = poisson()  ,prior=hs ( df =1 , global_df =1 , global_scale = tau0 ) , QR=TRUE,   chains = 4, cores = n_cores, seed = 123 ,iter=n_iter)
+# test2<-stan_glmer(form1, data = data.fit, family = poisson()  ,prior=hs() , QR=TRUE,   chains = 4, cores = n_cores, seed = 123 ,iter=n_iter)
+# test3<-stan_glmer(form1, data = data.fit, family = poisson()  ,prior=hs() ,prior_intercept =normal(autoscale=FALSE),   QR=TRUE,   chains = 4, cores = n_cores, seed = 123 ,iter=n_iter)
+# test4<-stan_glmer(form1, data = data.fit, family = poisson()  ,prior=hs() ,prior_intercept =normal(autoscale=FALSE),     chains = 4, cores = n_cores, seed = 123 ,iter=n_iter)
+
+#test4<-stan_glmer(form1, data = data.fit, family = poisson()  ,prior=hs_plus() ,prior_intercept =normal(autoscale=FALSE),   QR=TRUE,   chains = 4, cores = n_cores, seed = 123 ,iter=n_iter)
+#test5<-stan_glmer(form1, data = data.fit, family = poisson()  ,prior=hs_plus() ,prior_intercept =normal(autoscale=TRUE),   QR=TRUE,   chains = 4, cores = n_cores, seed = 123 ,iter=n_iter)
+
 ##########################################################################
 ##########################################################################
-
 #Save the inclusion probabilities from each of the models
 inclusion_prob_full <- setNames(lapply(impact_full, inclusionProb), groups)
 inclusion_prob_allvars <- setNames(lapply(impact_allvars, inclusionProb), groups)
@@ -404,57 +312,5 @@ saveRDS(log_rr_full_t_samples.allvars.prec, file=paste0(output_directory, countr
 #                              #
 ################################
 
-#Pred Sensitivity Analysis--tests effect of changing prior on Ncovars from 3 to 2 to 10
-# cl <- makeCluster(n_cores)
-# clusterEvalQ(cl, {library(CausalImpact, quietly = TRUE); library(lubridate, quietly = TRUE); library(RcppRoll, quietly = TRUE)})
-# clusterExport(cl, c('doCausalImpact', 'predSensitivityAnalysis', 'inclusionProb', 'rrPredQuantiles', 'getPred', 'getRR', 'groups', 'ds', 'data_full', 'denom_name', 'outcome_mean', 'outcome_sd', 'intervention_date', 'eval_period', 'post_period', 'time_points', 'n_seasons'), environment())
-# 
-# sensitivity_analysis_pred_2  <- setNames(as.data.frame(t(parSapply(cl, groups, predSensitivityAnalysis, ds = ds, zoo_data = data_full, denom_name = denom_name, outcome_mean = outcome_mean, outcome_sd = outcome_sd, intervention_date = intervention_date, eval_period = eval_period, post_period = post_period, time_points = time_points, n_seasons = n_seasons, n_pred = 2 ))), c('Lower CI', 'Point Estimate', 'Upper CI'))
-# sensitivity_analysis_pred_10 <- setNames(as.data.frame(t(parSapply(cl, groups, predSensitivityAnalysis, ds = ds, zoo_data = data_full, denom_name = denom_name, outcome_mean = outcome_mean, outcome_sd = outcome_sd, intervention_date = intervention_date, eval_period = eval_period, post_period = post_period, time_points = time_points, n_seasons = n_seasons, n_pred = 10))), c('Lower CI', 'Point Estimate', 'Upper CI'))
-# 
-# stopCluster(cl)
-# 
-# sensitivity_analysis_pred_2_intervals  <- data.frame('Estimate (95% CI)' = makeInterval(sensitivity_analysis_pred_2[, 2],  sensitivity_analysis_pred_2[, 3],  sensitivity_analysis_pred_2[, 1]),  row.names = groups, check.names = FALSE)
-# sensitivity_analysis_pred_10_intervals <- data.frame('Estimate (95% CI)' = makeInterval(sensitivity_analysis_pred_10[, 2], sensitivity_analysis_pred_10[, 3], sensitivity_analysis_pred_10[, 1]), row.names = groups, check.names = FALSE)
-# 
-
-
-bad_sensitivity_groups <- sapply(covars_full, function (covar) {ncol(covar) <= n_seasons-1+3})
- sensitivity_covars_full <- covars_full[!bad_sensitivity_groups]
- sensitivity_ds <- ds[!bad_sensitivity_groups]
- sensitivity_impact_full <- impact_full[!bad_sensitivity_groups]
- sensitivity_groups <- groups[!bad_sensitivity_groups]
-
-if (length(sensitivity_groups)!=0) {
- #Weight Sensitivity Analysis - top weighted variables are excluded and analysis is re-run.
-cl <- makeCluster(n_cores)
-clusterEvalQ(cl, {library(pogit, quietly = TRUE); library(lubridate, quietly = TRUE); library(RcppRoll, quietly = TRUE)})
-clusterExport(cl, c('sensitivity_ds', 'doCausalImpact', 'year_def', 'weightSensitivityAnalysis', 'rrPredQuantiles', 'sensitivity_groups', 'intervention_date', 'outcome', 'time_points', 'n_seasons',  'eval_period', 'post_period','crossval'), environment())
-  sensitivity_analysis_full <- setNames(parLapply(cl, sensitivity_groups, weightSensitivityAnalysis, covars = sensitivity_covars_full, ds = sensitivity_ds, impact = sensitivity_impact_full, time_points = time_points, intervention_date = intervention_date, n_seasons = n_seasons, outcome = outcome,  eval_period = eval_period, post_period = post_period), sensitivity_groups)
-stopCluster(cl)
-
-sensitivity_pred_quantiles  <- lapply(sensitivity_analysis_full, FUN = function(sensitivity_analysis) {
-	pred_list <- vector(mode = 'list', length = length(sensitivity_analysis))
-	for (sensitivity_index in 1:length(sensitivity_analysis)) {
-		pred_list[[sensitivity_index]] <- getPred(sensitivity_analysis[[sensitivity_index]])
-	}
-	return(pred_list)
-})
-
-#Table of rate ratios for each sensitivity analysis level
-sensitivity_table <- t(sapply(sensitivity_groups, sensitivityTable, sensitivity_analysis = sensitivity_analysis_full, original_rr = rr_mean_full))
-sensitivity_table_intervals <- data.frame('Estimate (95% CI)' = makeInterval(sensitivity_table[, 2],  sensitivity_table[, 3],  sensitivity_table[, 1]),
-																					'Top Control 1' = sensitivity_table[, 'Top Control 1'],
-																					'Inclusion Probability of Control 1' = sensitivity_table[, 'Inclusion Probability of Control 1'],
-																					'Control 1 Estimate (95% CI)' = makeInterval(sensitivity_table[, 7],  sensitivity_table[, 8],  sensitivity_table[, 6]),
-																					'Top Control 2' = sensitivity_table[, 'Top Control 2'],
-																					'Inclusion Probability of Control 2' = sensitivity_table[, 'Inclusion Probability of Control 2'],
-																					'Control 2 Estimate (95% CI)' = makeInterval(sensitivity_table[, 12],  sensitivity_table[, 13],  sensitivity_table[, 11]),
-																					'Top Control 3' = sensitivity_table[, 'Top Control 3'],
-																					'Inclusion Probability of Control 3' = sensitivity_table[, 'Inclusion Probability of Control 3'],
-																					'Control 3 Estimate (95% CI)' = makeInterval(sensitivity_table[, 17],  sensitivity_table[, 18],  sensitivity_table[, 16]), check.names = FALSE)
-rr_table <- cbind.data.frame(round(rr_mean_time[!bad_sensitivity_groups, ],2), sensitivity_table)
-rr_table_intervals <- cbind('ITS Estimate (95% CI)' = rr_mean_time_intervals[!bad_sensitivity_groups, ], sensitivity_table_intervals)
-} else {
   sensitivity_table_intervals <- NA
-}
+
