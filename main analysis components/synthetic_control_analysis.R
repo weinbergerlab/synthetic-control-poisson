@@ -162,7 +162,37 @@ for(i in 1: length(data_full)){
   data_allvars[[i]]<-   cbind.data.frame(data_full[[i]], pc1=scale(data_pca[[i]][,ncol(data_pca[[i]])]), time.index=scale(1:nrow(data_pca[[i]])) )
 }
   
-  
+#########################
+# test1<-data_allvars[[5]]
+# plot(test1$pc1)
+# abline(v=which(time_points==post_period[1]))
+# plot(test1$outcome)
+# abline(v=which(time_points==post_period[1]))
+# plot(test1$acm_noj_prim)
+# abline(v=which(time_points==post_period[1]))
+# tredn=FALSE
+# zoo_data<-test1
+# #Format outcome and covariates for regular and cross-validations
+#   ##Data for non-cross-validation
+#   y.pre <- zoo_data[time_points < as.Date(intervention_date), 1]
+#   y.full<-zoo_data[,1] #all y
+#   exclude.indices<-NA
+#     x <-as.matrix(zoo_data[, -c(1)]) #Removes outcome column from dataset
+#   x.pre <-as.matrix(x[time_points < as.Date(intervention_date), ]) 
+# post_period_response <- y.full
+# post_period_response <- as.vector(post_period_response[time_points >= as.Date(intervention_date)])
+# covars<-x
+# cID <- seq_along(y.pre) #used for observation-level random effect
+# ############################
+# #Which variables are fixed in the analysis (not estimated)
+# deltafix.mod<-rep(0, times=(ncol(x.pre)))
+# deltafix.mod[1:(n_seasons-1)]<-1 #fix  monthly dummies
+# bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=TRUE, model = list(deltafix=deltafix.mod,ri = TRUE, clusterID = cID),prior=list(V=1, slab='Normal'), mcmc=list(M=8000, burnin=2000))
+# colMeans(bsts_model.pois$samplesP$pdeltaBeta)
+# plot(bsts_model.pois$samplesP$pdeltaBeta[,24])
+# plot(bsts_model.pois$samplesP$beta[,ncol(bsts_model.pois$samplesP$beta)], type='l') #TT
+# plot(bsts_model.pois$samplesP$beta[,ncol(bsts_model.pois$samplesP$beta)-1], type='l') #PC1
+
 ###############################
 #                             #
 #        Main analysis        #

@@ -99,7 +99,7 @@ makeTimeSeries <- function(group, outcome,  covars, trend=FALSE) {
 
 
 #Main analysis function.
-doCausalImpact <- function(zoo_data, intervention_date, ri.select=TRUE,time_points,crossval.stage=FALSE, var.select.on=TRUE, n_iter = 10000, trend = FALSE) {
+doCausalImpact <- function(zoo_data, intervention_date, ri.select=TRUE,time_points,crossval.stage=FALSE, var.select.on=TRUE, n_iter = 8000, trend = FALSE, burnN=2000) {
 	
   #Format outcome and covariates for regular and cross-validations
   if(crossval.stage){
@@ -148,7 +148,7 @@ doCausalImpact <- function(zoo_data, intervention_date, ri.select=TRUE,time_poin
 	  if(var.select.on){
 	    deltafix.mod<-rep(0, times=(ncol(x.pre)))
 	    deltafix.mod[1:(n_seasons-1)]<-1 #fix  monthly dummies
-	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=TRUE, model = list(deltafix=deltafix.mod,ri = TRUE, clusterID = cID),prior=list(V=1, slab='Normal'))
+	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=TRUE, model = list(deltafix=deltafix.mod,ri = TRUE, clusterID = cID),prior=list(V=1, slab='Normal'), mcmc=list(M=n_iter, burnin=burnN))
 	  }else{
 	    if(ri.select){
 	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=FALSE, model = list(ri = TRUE, clusterID = cID),prior=list(V=1, slab='Normal'))
