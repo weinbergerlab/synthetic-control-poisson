@@ -143,17 +143,17 @@ doCausalImpact <- function(zoo_data, intervention_date, ri.select=TRUE,time_poin
 	#Which variables are fixed in the analysis (not estimated)
 	if(trend){
   	deltafix.mod<-c(rep(1, times=(ncol(x.pre)-1)),0) #monthly dummies, offset, fixed 
-  	bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, offset=offset.t.pre, BVS=var.select.on, model = list(deltafix=deltafix.mod,ri = ri.select, clusterID = cID))
+  	bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, offset=offset.t.pre, BVS=var.select.on,prior=list(V=1, slab='Normal'), model = list(deltafix=deltafix.mod,ri = ri.select, clusterID = cID))
 	}else{
 	  if(var.select.on){
 	    deltafix.mod<-rep(0, times=(ncol(x.pre)))
 	    deltafix.mod[1:(n_seasons-1)]<-1 #fix  monthly dummies
-	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=TRUE, model = list(deltafix=deltafix.mod,ri = TRUE, clusterID = cID))
+	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=TRUE, model = list(deltafix=deltafix.mod,ri = TRUE, clusterID = cID),prior=list(V=1, slab='Normal'))
 	  }else{
 	    if(ri.select){
-	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=FALSE, model = list(ri = TRUE, clusterID = cID))
+	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=FALSE, model = list(ri = TRUE, clusterID = cID),prior=list(V=1, slab='Normal'))
 	    }else{
-	   bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=FALSE)
+	   bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=FALSE,prior=list(V=1, slab='Normal'))
 	    }
 	  }
 	}
