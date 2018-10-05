@@ -159,9 +159,61 @@ data_null <- setNames(lapply(groups, makeTimeSeries, outcome = outcome, covars =
 data_time_no_offset <- setNames(lapply(groups, makeTimeSeries, outcome = outcome, covars = covars_time, trend=FALSE), groups)
 data_allvars <- vector("list", length(data_full)) 
 for(i in 1: length(data_full)){
-  data_allvars[[i]]<-   cbind.data.frame(data_full[[i]], pc1=scale(data_pca[[i]][,ncol(data_pca[[i]])]), time.index=scale(1:nrow(data_pca[[i]])) )
+  #data_allvars[[i]]<-   cbind.data.frame(data_full[[i]], pc1=scale(data_pca[[i]][,ncol(data_pca[[i]])]), time.index=scale(1:nrow(data_pca[[i]])) )
+  data_allvars[[i]]<-   cbind.data.frame(data_full[[i]], time.index=scale(1:nrow(data_pca[[i]])) )
 }
   
+
+
+# #Play 1
+# test1<-data_time[[5]]
+# post.dummy<-as.numeric(time_points>=post_period[1])
+# t<-(1:length(time_points))/length(time_points)
+# 
+# test1.outcome<-test1[,c(1,3:13)]
+# test1.outcome$control<-0
+# test1.outcome$post.dummy<-post.dummy
+# test1.outcome$t<-t
+# test1.cont<-test1[,c(2:13)]
+# test1.cont[,1]<-exp(test1.cont[,1])-0.5
+# test1.cont$control<-1
+# test1.cont$post.dummy<-post.dummy
+# test1.cont$t<-t
+# names(test1.cont)[1]<-'outcome'
+# test2<-rbind(test1.outcome,test1.cont)
+# 
+# ##
+# mod1<-glm(outcome~ control*(s1+s2+s3+s4+s5+s6+s7+s8+s9+s10+s11+t*post.dummy), family='poisson', data=test2)
+# summary(mod1)
+# 
+# #Play 2
+#   test1<-ds[[5]]
+#   test1<-test1[,-c(1:2)]
+#   post.dummy<-as.numeric(time_points>=post_period[1])
+#   post.dummy[ time_points>=post_period[1] %m+% months(12)]<-2
+#   post.dummy<-as.factor(post.dummy)
+#   t<-(1:length(time_points))/length(time_points)
+#   
+#   test1.outcome<-cbind.data.frame(test1[,c(1), drop=F] ,season.dummies)
+#   test1.outcome$control<-0
+#   test1.outcome$post.dummy<-post.dummy
+#   test1.outcome$t<-t
+#   names(test1.outcome)[1]<-'y'
+# for(i in 1:(ncol(test1))){
+#     print(i)
+#   test1.cont<-cbind.data.frame(test1[,i+1, drop=F] ,season.dummies)
+#   test1.cont[,1]<-exp(test1.cont[,1])-0.5
+#   test1.cont$control<-1
+#   test1.cont$post.dummy<-post.dummy
+#   test1.cont$t<-t
+#   names(test1.cont)[1]<-'y'
+#   test2<-rbind(test1.outcome,test1.cont)
+#   
+#   ##
+#   mod1<-glm(y~ control*(s1+s2+s3+s4+s5+s6+s7+s8+s9+s10+s11+t*post.dummy), family='poisson', data=test2)
+#  print( summary(mod1))
+# }
+
 #########################
 # test1<-data_allvars[[5]]
 # plot(test1$pc1)
@@ -213,6 +265,11 @@ impact_allvars <- setNames(parLapply(cl, data_allvars, doCausalImpact, intervent
 #No covariates except seasonal, no random intercept
 #impact_seas_only_no_re <- setNames(parLapply(cl, data_null, doCausalImpact, intervention_date = intervention_date, var.select.on=FALSE,ri.select=FALSE, time_points = time_points, n_seasons = n_seasons), groups)
 stopCluster(cl)
+
+
+##Model size for SC model
+model.size.sc<-sapply(impact_full,modelsize_func)
+
 
 ####################################################
 ####################################################

@@ -143,17 +143,17 @@ doCausalImpact <- function(zoo_data, intervention_date, ri.select=TRUE,time_poin
 	#Which variables are fixed in the analysis (not estimated)
 	if(trend){
   	deltafix.mod<-c(rep(1, times=(ncol(x.pre)-1)),0) #monthly dummies, offset, fixed 
-  	bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, offset=offset.t.pre, BVS=var.select.on,prior=list(V=1, slab='Normal'), model = list(deltafix=deltafix.mod,ri = ri.select, clusterID = cID))
+  	bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, offset=offset.t.pre, BVS=var.select.on, model = list(deltafix=deltafix.mod,ri = ri.select, clusterID = cID))
 	}else{
 	  if(var.select.on){
 	    deltafix.mod<-rep(0, times=(ncol(x.pre)))
 	    deltafix.mod[1:(n_seasons-1)]<-1 #fix  monthly dummies
-	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=TRUE, model = list(deltafix=deltafix.mod,ri = TRUE, clusterID = cID),prior=list(V=1, slab='Normal'), mcmc=list(M=n_iter, burnin=burnN))
+	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=TRUE, model = list(deltafix=deltafix.mod,ri = TRUE, clusterID = cID), mcmc=list(M=n_iter, burnin=burnN))
 	  }else{
 	    if(ri.select){
-	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=FALSE, model = list(ri = TRUE, clusterID = cID),prior=list(V=1, slab='Normal'))
+	    bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=FALSE, model = list(ri = TRUE, clusterID = cID))
 	    }else{
-	   bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=FALSE,prior=list(V=1, slab='Normal'))
+	   bsts_model.pois  <- poissonBvs(y=y.pre , X=x.pre, BVS=FALSE)
 	    }
 	  }
 	}
@@ -198,6 +198,14 @@ doCausalImpact <- function(zoo_data, intervention_date, ri.select=TRUE,time_poin
 	  names(impact)<-c('reg.mean','exclude.indices' ,'rand.eff','covars','beta.mat','predict.bsts','inclusion_probs','post_period_response', 'observed.y' )
 	}
 	return(impact)
+}
+
+modelsize_func<-function(ds){
+  mod1<-ds$beta.mat
+  nonzero<-apply(mod1,1, function(x) sum(x!=0)-n_seasons ) #How many non-zero covariates, aside from seasonal dummies and intercept?
+  incl_prob<-apply(mod1,2, function(x) mean(x!=0) ) #How many non-zero covariates, aside from seasonal dummies and intercept?
+  modelsize<- round(mean(nonzero),2) #takes the mean model size among the 8000 MCMC iterations
+  return(modelsize)
 }
 
 crossval.log.lik<- function(cv.impact){
