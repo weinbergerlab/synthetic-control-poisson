@@ -631,6 +631,12 @@ glm.fun<-function(ds.fit){
   return(glm.out)
 }
 
+stl.covars.alt<-function(ds){
+  acm.keep<-grep( denom_name,names(ds))
+  ds2<-ds[,c(1:n_seasons,acm.keep)]
+  return(ds2)
+}
+
 pca_top_var<-function(glm.results.in, covars,ds.in){
     #Extract AICs from list into dataframe
     aics<-unlist(lapply(glm.results.in, '[[', 'aic.test'))  # This returns a vector with AIC score

@@ -134,25 +134,13 @@ if (length(groups)>1){
 }else{
   stl.data.setup <- list(mapply(stl_data_fun,covars=stl.covars, ds.sub=ds ))
 }
-
-##SECTION 2: run first stage models
-n_cores <- detectCores()-1
-glm.results<- vector("list",  length=length(stl.data.setup)) #combine models into a list
-cl1 <- makeCluster(n_cores)
-clusterEvalQ(cl1, {library(lme4, quietly = TRUE)})
-clusterExport(cl1, c('stl.data.setup',  'glm.fun', 'time_points', 'n_seasons','post.start.index'), environment())
-for(i in 1:length(stl.data.setup)){
-  print(i)
-  glm.results[[i]]<-parLapply(cl=cl1 ,     stl.data.setup[[i]], fun=glm.fun )
-}
-stopCluster(cl1)
-######################
+stl.acm<-lapply(stl.covars,stl.covars.alt) #Just extract the STL variables for AMC_noJ
+ 
 
 #Combine the outcome, covariates, and time point information.
 data_full <- setNames(lapply(groups, makeTimeSeries, outcome = outcome,       covars = covars_full), groups)
 data_time <- setNames(lapply(groups, makeTimeSeries, outcome = outcome, covars = covars_time, trend=TRUE), groups)
-data_pca<-mapply(FUN=pca_top_var,glm.results.in=glm.results, covars=stl.covars,ds.in=ds, SIMPLIFY=FALSE)
-names(data_pca)<-groups
+data_pca<-setNames(lapply(groups, makeTimeSeries, outcome = outcome, covars = stl.acm, trend=FALSE), groups)
 #Null model where we only include seasonal terms but no covariates
 data_null <- setNames(lapply(groups, makeTimeSeries, outcome = outcome, covars = covars_null, trend=FALSE), groups)
 #Time trend model but without a denominator
@@ -171,7 +159,7 @@ clusterExport(cl, c('doCausalImpact',  'intervention_date', 'time_points', 'n_se
   impact_full <- setNames(parLapply(cl, data_full, doCausalImpact, intervention_date = intervention_date, var.select.on=TRUE, time_points = time_points), groups)
   impact_time <- setNames(parLapply(cl, data_time, doCausalImpact, intervention_date = intervention_date,  var.select.on=FALSE,time_points = time_points, trend = TRUE), groups)
   impact_time_no_offset <- setNames(parLapply(cl, data_time_no_offset, doCausalImpact, intervention_date = intervention_date,  var.select.on=FALSE,time_points = time_points,  trend = FALSE), groups)
-  impact_pca <- setNames(parLapply(cl, data_pca, doCausalImpact, intervention_date = intervention_date, var.select.on=FALSE, time_points = time_points), groups)
+  impact_pca <- setNames(parLapply(cl, data_pca, doCausalImpact, intervention_date = intervention_date, var.select.on=TRUE, time_points = time_points), groups)
 stopCluster(cl)
 
 ##Model size for SC model
@@ -393,7 +381,7 @@ saveRDS(save.best.est, file=paste0(output_directory, country, "best estimates.rd
 # sensitivity_analysis_pred_10_intervals <- data.frame('Estimate (95% CI)' = makeInterval(sensitivity_analysis_pred_10[, 2], sensitivity_analysis_pred_10[, 3], sensitivity_analysis_pred_10[, 1]), row.names = groups, check.names = FALSE)
 # 
 
-
+if(sensitivity_switch){
 bad_sensitivity_groups <- sapply(covars_full, function (covar) {ncol(covar) <= n_seasons-1+3})
  sensitivity_covars_full <- covars_full[!bad_sensitivity_groups]
  sensitivity_ds <- ds[!bad_sensitivity_groups]
@@ -432,4 +420,5 @@ rr_table <- cbind.data.frame(round(rr_mean_time[!bad_sensitivity_groups, ],2), s
 rr_table_intervals <- cbind('ITS Estimate (95% CI)' = rr_mean_time_intervals[!bad_sensitivity_groups, ], sensitivity_table_intervals)
 } else {
   sensitivity_table_intervals <- NA
+}
 }
