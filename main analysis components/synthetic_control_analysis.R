@@ -128,10 +128,11 @@ post.start.index<-which(time_points==post_period[1])
 #data_full <- setNames(lapply(groups, makeTimeSeries, outcome = outcome,       covars = covars_full), groups)
 data_time <- setNames(lapply(groups, makeTimeSeries, outcome = outcome, covars = covars_time, trend=TRUE), groups)
 
-rr.its<-sapply(data_time,its_func, simplify='array')
-rr.end<-t(rr.its[length(time_points),,])
+rr.its1<-lapply(data_time,its_func)
+rr.t<-sapply(rr.its1, `[[`, "rr.q.t", simplify='array')
+rr.end<-t(sapply(rr.its1, `[[`, "rr.q.post", simplify='array')) 
 
-matplot(rr.its[,,10], bty='l', type='l', lty=c(2,1,2), col='gray')
+matplot(rr.t[,,10], bty='l', type='l', lty=c(2,1,2), col='gray')
 abline(h=1)
 
 write.csv(rr.end, paste(output_directory, country, 'rr_classic_its.csv', sep = ''))
