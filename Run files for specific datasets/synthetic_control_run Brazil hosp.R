@@ -12,7 +12,7 @@ require(RCurl)
 ###WORKING DIRECTORY Should be set as the directory where .Rmd file is saved  ####
 #setwd(auto.wd) ##automatically set working directory to '~desktop/synthetic-control-poisson-master/main analysis components/'
 
-setwd('C:/Users/dmw63/Documents/GitHub/synthetic-control-poisson/main analysis components')
+#setwd('C:/Users/dmw63/Documents/GitHub/synthetic-control-poisson/main analysis components')
 
 #Used to check for relevant packages and update them if out of date or install them if not installed.
 update_packages  <- TRUE #Whether to update outdated packages.
@@ -59,5 +59,5 @@ crossval=TRUE #run cross validation? Note this takes time...adds ~40 min with 10
 # source('synthetic_control_plot.R', local = TRUE)
 
 #Run analysis and generate HTML report
-source('synthetic_control_report.R', local = TRUE)
-source('synthetic_control_write_results.R', local = TRUE) #save .csv files with output tables
+source('./main analysis components/synthetic_control_report.R', local = TRUE)
+source('./main analysis components/synthetic_control_write_results.R', local = TRUE) #save .csv files with output tables
