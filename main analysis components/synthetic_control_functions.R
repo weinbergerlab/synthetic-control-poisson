@@ -633,7 +633,7 @@ glm.fun<-function(ds.fit){
   ds.fit$obs<-as.factor(1:nrow(ds.fit))
   form1<-as.formula(paste0('cy~', fixed.effects, "+ (1|obs)" ))
   mod1<-glmer(form1,data=ds.fit[pre.index,], family='poisson',control=glmerControl(optimizer="bobyqa",
-                                                                                   optCtrl=list(maxfun=2e5)) )
+                                                                                   optCtrl=list(maxfun=2e5)) , offset=log.offset)
   pred.mean<-predict(mod1, newdata=ds.fit,re.form=NA )
   aic.test<-AIC( mod1)
   test.var<-   attributes(ds.fit)$comment  #THIS IS DIFFERENT FOR BIVARIATE
@@ -713,13 +713,14 @@ its_func<-function(ds1){
   ds1$post2<-0
   ds1$post2[time_points>=eval_period[1]]<-1
   ds1$time_index<-ds1$time_index/max(ds1$time_index)
-  ds1$obs<-1:nrow(ds1)
+  ds1$obs<-as.factor(1:nrow(ds1))
   ds1$log.offset<-scale(ds1$log.offset)
   eval_indices <- match(which(time_points==eval_period[1]), (1:length(ds1$obs))):match(which(time_points==eval_period[2]), (1:length(ds1$obs)))
   #Fit classic ITS model
-  mod1<-glmer(outcome~ s1+s2+s3+s4+s5+s6+s7+s8+s9+s10+s11+log.offset +time_index + post1 +post2 +
+  mod1<-glmer(outcome~ s1+s2+s3+s4+s5+s6+s7+s8+s9+s10+s11 +log.offset+time_index + post1 +post2 +
                 time_index*post1 +time_index*post2 + (1|obs),data=ds1, family=poisson(link=log),control=glmerControl(optimizer="bobyqa",
-                                                                                                                     optCtrl=list(maxfun=2e5)) )
+                                                optCtrl=list(maxfun=2e5))
+                                                 )
   #GENERATE PREDICTIONS
   covars3<-as.matrix(cbind(ds1[,c('s1','s2','s3','s4','s5','s6','s7','s8','s9','s10','s11','log.offset',
                                   'time_index','post1','post2')], ds1$time_index*ds1$post1, 

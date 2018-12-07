@@ -25,30 +25,10 @@ if(.Platform$OS.type == "windows") {
 auto.wd<-file.path(paste0(desktop,'/synthetic-control-poisson-master/main analysis components/'))
 #
 
-packages <- c('parallel', 'splines', 'lubridate','loo','MASS', 'RcppRoll','pomp','lme4', 'ggplot2', 'reshape','dummies')
+packages <- c('parallel', 'splines', 'lubridate','MASS', 'RcppRoll','lme4', 'ggplot2', 'reshape','dummies')
 packageHandler(packages, update_packages, install_packages)
 sapply(packages, library, quietly = TRUE, character.only = TRUE)
 
-#Detect if pogit package installed; if not download archive (no longer on cran)
-if("BayesLogit" %in% rownames(installed.packages())==FALSE){
-  if(.Platform$OS.type == "windows") {
-  #url_BayesLogit<- "https://mran.microsoft.com/snapshot/2017-02-04/src/contrib/BayesLogit_0.6.tar.gz"
-  install_github("jwindle/BayesLogit")
-  }else{
-    url_BayesLogit<- "https://github.com/weinbergerlab/synthetic-control-poisson/blob/master/packages/BayesLogit_0.6_mac.tgz?raw=true"
-  }
-  pkgFile_BayesLogit <- "BayesLogit.tar.gz"
-  download.file(url = url_BayesLogit, destfile = pkgFile_BayesLogit)
-  install.packages(url_BayesLogit, type="source", repos=NULL)
-}
-if("pogit" %in% rownames(installed.packages())==FALSE){
-  url_pogit <- "https://cran.r-project.org/src/contrib/Archive/pogit/pogit_1.1.0.tar.gz"
-  pkgFile_pogit <- "pogit_1.1.0.tar.gz"
-  download.file(url = url_pogit, destfile = pkgFile_pogit)
-  install.packages(pkgs=pkgFile_pogit, type="source", repos=NULL)
-  install.packages('logistf')
-}
-library(pogit)
 
 #Detects number of available cores on computers. Used for parallel processing to speed up analysis.
 n_cores <- detectCores()
@@ -72,6 +52,7 @@ if (exists('exclude_group')) {groups <- groups[!(groups %in% exclude_group)]}
 
 #Make sure we are in right format
 prelog_data[,date_name]<-as.Date(as.character(prelog_data[,date_name]), tryFormats=c("%m/%d/%Y",'%Y-%m-%d' ))
+prelog_data<-prelog_data[order(prelog_data$age_group, prelog_data[,date_name]),]
 
 #test<-split(prelog_data, factor(prelog_data[,group_name]))
 #outcome.na<-sapply(test, function(x) sum(is.na(x[,outcome_name])))
@@ -93,9 +74,14 @@ if(n_seasons==3){
   dt[dt.m %in% c(5,6,7,8)]<-2
   dt[dt.m %in% c(9,10,11,12)]<-3
     }
-season.dummies<-dummy(dt)
+#season.dummies<-dummy(dt)
+season.dummies<-matrix(0, nrow=length(dt), ncol=(max(dt)-1))
+for(i in 1:ncol(season.dummies)){
+  season.dummies[dt==i,i]<-1
+}
+
 season.dummies<-as.data.frame(season.dummies)
-names(season.dummies)<-paste0('s', 1:n_seasons)
+names(season.dummies)<-paste0('s', 1:(n_seasons-1))
 season.dummies<-season.dummies[,-n_seasons]
 
 ds <- lapply(ds, function(ds) {
@@ -105,11 +91,9 @@ ds <- lapply(ds, function(ds) {
 	return(ds)
 })
 
-sparse_groups <- sapply(ds, function(ds) {
-	return(ncol(ds[!(colnames(ds) %in% c(date_name, group_name, denom_name, outcome_name, exclude_covar))]) == 0)
-})
-ds <- ds[!sparse_groups]
-groups <- groups[!sparse_groups]
+
+
+
 
 #Process and standardize the covariates. For the Brazil data, adjust for 2008 coding change.
 covars_full <- setNames(lapply(ds, makeCovars), groups)
@@ -132,7 +116,16 @@ rr.its1<-lapply(data_time,its_func)
 rr.t<-sapply(rr.its1, `[[`, "rr.q.t", simplify='array')
 rr.end<-t(sapply(rr.its1, `[[`, "rr.q.post", simplify='array')) 
 
-matplot(rr.t[,,10], bty='l', type='l', lty=c(2,1,2), col='gray')
+tiff( paste(output_directory, country, 'rr_classic_its.tiff', sep = ''), width=10, height=8, units='in', res=200)
+par(mfcol=c(2,dim(rr.t)[3]), mar=c(1,1,1,1))
+for(i in 1:dim(rr.t)[3]){
+matplot(rr.t[,,i], bty='l', type='l', lty=c(2,1,2), col='gray', ylim=c(0.5,1.5))
 abline(h=1)
+abline(v=post.start.index, col='red')
+title(dimnames(rr.t)[[3]][i])
+plot(prelog_data[[i]]$acm, bty='l', type='l')
+abline(v=post.start.index, col='red')
+}
+dev.off()
 
 write.csv(rr.end, paste(output_directory, country, 'rr_classic_its.csv', sep = ''))
