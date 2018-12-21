@@ -14,7 +14,7 @@ params:
    eval_period_end: '2013-12-01'
    year_def: 'cal_year'
    sensitivity: TRUE
-   crossval: TRUE
+   crossval: FALSE
    group_name: 'age_group'
    date_name: 'date'
    outcome_name: 'J12_18'  
@@ -520,14 +520,14 @@ rr_table_intervals <- cbind('Trend Estimate (95% CI)' = rr_mean_time_intervals[!
 
 #`r country` Results
 
-```{r sparse}
+```{r sparse, echo=FALSE}
 if (!is.null(names(sparse_groups[sparse_groups])) && length(names(sparse_groups[sparse_groups])) != 0) {
 	kable(data.frame('Sparse Groups' = names(sparse_groups[sparse_groups]), check.names = FALSE), align = 'c')
 }
 ```
 
 ##combine estimates
-```{r Comparison of estimates from different models}
+```{r Comparison of estimates from different models, echo=FALSE}
 if (crossval){
 kable( cbind.data.frame(rr_mean_stack_intervals,rr_mean_full_intervals,rr_mean_time_intervals,rr_mean_time_no_offset_intervals,rr_mean_its_intervals, rr_mean_pca_intervals), align = 'c')
 }else{
