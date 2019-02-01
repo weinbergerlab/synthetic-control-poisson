@@ -1,5 +1,5 @@
 #setwd("~/synthetic-control-poisson")
-rmarkdown::render("./main analysis components/synthetic_control_report self contained.Rmd", output_file ='br.html', 
+rmarkdown::render("./main analysis components/synthetic_control_report_self_contained.Rmd", output_file ='br.html', 
                   params = list(country = "Brazil", 
                                 pre_period_start= '2004-01-01',
                                 period_period_end= '2009-12-31',
