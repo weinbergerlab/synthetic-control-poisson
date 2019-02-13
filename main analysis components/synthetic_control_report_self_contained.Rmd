@@ -51,6 +51,7 @@ group_name   <- params$group_name #Name of column containing group labels.
 date_name    <- params$date_name     #Name of column containing dates.
 outcome_name <- params$outcome_name    #Name of column containing outcome.
 denom_name   <- params$denom_name   #Name of column containing denominator to be used in offset.
+
   update_packages  <- params$update_packages 
   install_packages <- params$install_packages 
   install_pandoc   <- FALSE
@@ -83,7 +84,12 @@ library(pogit)
 #Assign variable values
 country       <- params$country #Country or region name.
 n_seasons     <- params$n_seasons       #Number of months (seasons) per year. 12 for monthly, 4 for quarterly, 3 for trimester data.
-exclude_covar <- c()      #User-defined list of covariate columns to exclude from all analyses.
+exclude_covar <- c('J09_J18_prim',
+                   'J00_J99_prim' ,'J12_J18_any', 'J13_any','J13_prim','pandemic',
+                   'possible_pneumo_code',"population" ,"acm_noj_nodiarr_prim",
+                   'A00_A09_prim', 'A30_49_prim', 'A41_prim', 'B95_B98_prim', 
+                   'G00_prim', 'G00_G09_prim', 'G00_G99_prim', 'H65_H75_prim',
+                   'F00_F99_prim', "O00_O99_prim")      #User-defined list of covariate columns to exclude from all analyses.
 exclude_group <- c()      #User-defined list of groups to exclude from analyses.
 if(country=="Brazil"){code_change   <- TRUE     #Used for Brazil data. Set to TRUE to adjust for year 2008 coding changes; otherwise, set to FALSE.
     }else{
