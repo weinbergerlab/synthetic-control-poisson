@@ -55,7 +55,7 @@ logTransform <- function(prelog_data, no_log = NULL) {
   return(prelog_data)
 }
 
-filterSparse <- function(dataset, threshold = 1) {
+filterSparse <- function(dataset, threshold = 2) {
 	return(dataset[, colMeans(dataset) > threshold, drop = FALSE])
 }
 

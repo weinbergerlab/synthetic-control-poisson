@@ -59,7 +59,7 @@ if (exists('exclude_group')) {groups <- groups[!(groups %in% exclude_group)]}
 ###############################################
 
 #Make sure we are in right format
-prelog_data[,date_name]<-as.Date(as.character(prelog_data[,date_name]), tryFormats=c("%m/%d/%Y",'%Y-%m-%d' ))
+prelog_data[,date_name]<-as.Date(as.character(prelog_data[,date_name]), tryFormats=c("%m/%d/%Y",'%Y-%m-%d','%Y/%m/%d' ))
 
 #test<-split(prelog_data, factor(prelog_data[,group_name]))
 #outcome.na<-sapply(test, function(x) sum(is.na(x[,outcome_name])))
@@ -102,6 +102,15 @@ groups <- groups[!sparse_groups]
 #Process and standardize the covariates. For the Brazil data, adjust for 2008 coding change.
 covars_full <- setNames(lapply(ds, makeCovars), groups)
 covars_full <- lapply(covars_full, FUN = function(covars) {covars[, !(colnames(covars) %in% exclude_covar), drop = FALSE]})
+##Pad covars_full with random normal 
+covars_full<-lapply(covars_full, function(x){
+  n.rnorm<-10
+  rand.mat<-as.data.frame(matrix(rnorm(n=n.rnorm*nrow(x)), ncol=n.rnorm))
+  names(rand.mat)<-paste0('rand', 1:n.rnorm)
+  z1<-cbind.data.frame(x,rand.mat )
+ # z1<- x
+  return(z1)
+})
 covars_time <- setNames(lapply(covars_full, FUN = function(covars) {as.data.frame(list(cbind(season.dummies,time_index = 1:nrow(covars))))}), groups)
 covars_null <- setNames(lapply(covars_full, FUN = function(covars) {as.data.frame(list(cbind(season.dummies)))}), groups)
 
