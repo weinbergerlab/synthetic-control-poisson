@@ -5,24 +5,24 @@ output:
   toc: TRUE
   toc_float: TRUE
 params:
-   country: "Brazil"
-   pre_period_start: '2004-01-01'
-   period_period_end: '2009-12-31'
-   post_period_start: '2010-01-01'
-   post_period_end: '2013-12-01'
+   country: "Honduras"
+   pre_period_start: '2007-01-01'
+   period_period_end: '2010-12-31'
+   post_period_start: '2011-01-01'
+   post_period_end: '2015-12-01'
    eval_period_start: '2012-01-01' 
-   eval_period_end: '2013-12-01'
+   eval_period_end: '2015-12-01'
    year_def: 'cal_year'
-   sensitivity: TRUE
+   sensitivity: FALSE
    crossval: FALSE
    group_name: 'age_group'
-   date_name: 'date'
-   outcome_name: 'J12_18'  
-   denom_name: 'ach_noj' 
+   date_name: 'monthdate'
+   outcome_name: 'J12_J18_prim'  
+   denom_name: 'acm_noj_prim' 
    n_seasons: 12
-   input_directory: 'https://raw.githubusercontent.com/weinbergerlab/synthetic-control/master/Datasets%20for%20PNAS/'
-   file_name: "Dataset%20S1%20Brazil.csv"
-   github.import: TRUE 
+   input_directory: "C:/Users/dmw63/Weinberger Lab Dropbox/PAHO mortality/Data/"
+   file_name: "PAHO all age cuts_SubChapters.csv"
+   github.import: FALSE 
    update_packages: FALSE 
    install_packages: TRUE 
 ---
@@ -104,7 +104,13 @@ prelog_data <- read.csv(text=getURL(data_file), check.names = FALSE)# IF IMPORTI
 }
 prelog_data<-prelog_data[!is.na(prelog_data[,outcome_name]),]#If outcome is missing, delete 
 groups <- as.character(unique(unlist(prelog_data[, group_name], use.names = FALSE)))
+groups<-groups[groups=="hr 2-59m A"]
 if (exists('exclude_group')) {groups <- groups[!(groups %in% exclude_group)]}
+
+#Sort
+prelog_data <- prelog_data[order(prelog_data$age_group, prelog_data$monthdate),] 
+
+
 
 
 #How many cores for parallel processing steps?
@@ -154,8 +160,8 @@ print(5)
 sparse_groups <- sapply(ds, function(ds) {
 	return(ncol(ds[!(colnames(ds) %in% c(date_name, group_name, denom_name, outcome_name, exclude_covar))]) == 0)
 })
-ds <- ds[!sparse_groups]
-groups <- groups[!sparse_groups]
+#ds <- ds[!sparse_groups]
+#groups <- groups[!sparse_groups]
 
 #Process and standardize the covariates. For the Brazil data, adjust for 2008 coding change.
 covars_full <- setNames(lapply(ds, makeCovars), groups)
