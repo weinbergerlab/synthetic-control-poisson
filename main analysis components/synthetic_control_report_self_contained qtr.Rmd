@@ -20,8 +20,8 @@ params:
    outcome_name: 'J12_J18_prim'  
    denom_name: 'acm_noj_prim' 
    n_seasons: 12
-   input_directory: "C:/Users/dmw63/Weinberger Lab Dropbox/PAHO mortality/Data/"
-   file_name: "PAHO all age cuts_SubChapters.csv"
+   input_directory: "C:/Users/dmw63/Desktop/"
+   file_name: "hr_2_59mo_ByQuarter.csv"
    github.import: FALSE 
    update_packages: FALSE 
    install_packages: TRUE 
@@ -115,6 +115,9 @@ if (exists('exclude_group')) {groups <- groups[!(groups %in% exclude_group)]}
 #Sort
 prelog_data <- prelog_data[order(prelog_data$age_group, prelog_data$monthdate),] 
 
+
+
+
 #How many cores for parallel processing steps?
 n_cores <- detectCores()
 set.seed(1)
@@ -122,7 +125,7 @@ set.seed(1)
 
 
 ```{r format_covars, include = FALSE}
-prelog_data[,date_name]<-as.Date(as.character(prelog_data[,date_name]), tryFormats=c("%m/%d/%Y",'%Y-%m-%d' ))
+prelog_data[,date_name]<-as.Date(as.character(prelog_data[,date_name]), tryFormats=c("%m/%d/%Y",'%Y/%m/%d','%Y-%m-%d' ))
 
 #test<-split(prelog_data, factor(prelog_data[,group_name]))
 #outcome.na<-sapply(test, function(x) sum(is.na(x[,outcome_name])))
@@ -170,11 +173,9 @@ covars_full <- setNames(lapply(ds, makeCovars), groups)
 covars_full <- lapply(covars_full, FUN = function(covars) {covars[, !(colnames(covars) %in% exclude_covar), drop = FALSE]})
 ##Pad covars_full with random normal 
 covars_full<-lapply(covars_full, function(x){
-      n.random<-1
-      rand.mat<-as.data.frame(matrix(rnorm(n=n.random*nrow(x)), ncol=n.random))
-      names(rand.mat)<-paste0('rand', 1:n.random)
+      rand.mat<-as.data.frame(matrix(rnorm(n=10*nrow(x)), ncol=10))
+      names(rand.mat)<-paste0('rand', 1:10)
       z1<-cbind.data.frame(x,rand.mat )
-     # z1=x
     return(z1)
 })
 
