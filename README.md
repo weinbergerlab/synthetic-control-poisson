@@ -1,3 +1,9 @@
+####################################################################
+
+THIS REPOSITORY IS NO LONGER BEING MAINTAINED. PLEASE USE THE InterventionEvaluatR PACKAGE https://github.com/weinbergerlab/InterventionEvaluatR
+
+#######################################################################
+
 # Synthetic Control
 #These scripts run synthetic control analyses where the input are vectors of count data representing a time series. The outcome variable should be a count variable. Bayesian variable selection (spike and Slab priors) is used to fit the models. Unlike the models described in Bruhn et al., these scripts use a Poisson regression with observation-level random effects to capture overdispersion. Leave-one-season-out cross validation is used to evaluate fit of the different models to pre-vaccine data, and this is used to generate model weights for stacking. 
 
